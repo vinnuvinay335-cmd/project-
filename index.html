@@ -1,729 +1,301 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Smart Pillow Monitoring Dashboard</title>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Smart Pillow Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <style>
-:root {
-  --bg: #0b1120;
-  --panel: #111b2e;
-  --panel2: #172338;
-  --border: #24334b;
-  --text: #e8eef8;
-  --muted: #8fa2bd;
-  --cyan: #36d6f5;
-  --green: #34d399;
-  --red: #fb7185;
-  --yellow: #fbbf24;
-  --blue: #60a5fa;
-}
+  :root {
+    --bg:#0f172a; --panel:#1e293b; --line:#334155; --text:#e2e8f0;
+    --muted:#94a3b8; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --accent:#38bdf8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text); padding: 16px;
+  }
+  h1 { font-size: 1.4rem; margin: 0 0 12px; letter-spacing: .5px; }
+  h1 span { color: var(--accent); }
+  .grid { display: grid; gap: 12px; }
+  @media (min-width: 1000px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+    .full { grid-column: 1 / -1; }
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 14px;
+  }
+  .card h2 { margin: 0 0 10px; font-size: .95rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
 
-* {
-  box-sizing: border-box;
-}
+  /* Live tiles */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap: 10px; }
+  .tile { background: #0b1220; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+  .tile .label { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+  .tile .value { font-size: 1.5rem; font-weight: 700; margin-top: 4px; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .8rem; font-weight: 700; }
+  .ok    { background: rgba(34,197,94,.15);  color: var(--ok); }
+  .warn  { background: rgba(245,158,11,.15); color: var(--warn); }
+  .bad   { background: rgba(239,68,68,.15);  color: var(--bad); }
+  .idle  { background: rgba(148,163,184,.15); color: var(--muted); }
 
-body {
-  margin: 0;
-  background: var(--bg);
-  font-family: Inter, Segoe UI, Arial, sans-serif;
-  color: var(--text);
-}
+  /* Chart */
+  .chart-wrap { position: relative; height: 320px; }
 
-header {
-  padding: 22px 30px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
-  background: #0d1525;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.logo {
-  width: 44px;
-  height: 44px;
-  border-radius: 13px;
-  background: linear-gradient(135deg, #27c8ef, #3678fc);
-  display: grid;
-  place-items: center;
-  font-size: 23px;
-}
-
-.brand h1 {
-  font-size: 19px;
-  margin: 0;
-}
-
-.brand p {
-  color: var(--muted);
-  font-size: 12px;
-  margin: 4px 0 0;
-}
-
-.connection {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 10px 14px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  color: var(--muted);
-  background: var(--panel);
-  font-size: 13px;
-}
-
-.dot {
-  width: 9px;
-  height: 9px;
-  background: var(--yellow);
-  border-radius: 50%;
-}
-
-.dot.online { background: var(--green); }
-.dot.offline { background: var(--red); }
-
-main {
-  max-width: 1500px;
-  margin: auto;
-  padding: 25px;
-}
-
-.welcome {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 23px;
-  flex-wrap: wrap;
-  gap: 15px;
-}
-
-.welcome h2 {
-  margin: 0;
-  font-size: 24px;
-}
-
-.welcome p {
-  margin: 7px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.status-pill {
-  border-radius: 50px;
-  padding: 9px 16px;
-  background: #183b31;
-  color: var(--green);
-  border: 1px solid #285946;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.status-pill.alert {
-  background: #451c29;
-  color: var(--red);
-  border-color: #753547;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-}
-
-.card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 20px;
-  min-width: 0;
-}
-
-.card-label {
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 13px;
-}
-
-.card-value {
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-}
-
-.card-unit {
-  font-size: 13px;
-  color: var(--muted);
-  font-weight: 500;
-}
-
-.card-footer {
-  margin-top: 12px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.card-icon {
-  font-size: 20px;
-  margin-bottom: 12px;
-}
-
-.green { color: var(--green); }
-.cyan { color: var(--cyan); }
-.yellow { color: var(--yellow); }
-.red { color: var(--red); }
-.blue { color: var(--blue); }
-
-.section-title {
-  margin: 25px 0 14px;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.chart-card {
-  margin-top: 20px;
-  padding: 22px;
-}
-
-.chart-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 15px;
-}
-
-.chart-head h3 {
-  margin: 0;
-  font-size: 16px;
-}
-
-.chart-head p {
-  margin: 6px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.chart-wrap {
-  height: 360px;
-  position: relative;
-}
-
-.sensor-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-top: 18px;
-}
-
-.sensor-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 18px;
-}
-
-.sensor-card h4 {
-  margin: 0 0 12px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.sensor-value {
-  font-size: 22px;
-  font-weight: 700;
-}
-
-.sensor-status {
-  margin-top: 10px;
-  font-size: 12px;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-top: 18px;
-}
-
-.info-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 18px;
-}
-
-.info-card h4 {
-  font-size: 12px;
-  color: var(--muted);
-  margin: 0 0 12px;
-}
-
-.info-value {
-  font-size: 17px;
-  font-weight: 600;
-}
-
-.alert-box {
-  margin-top: 20px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 20px;
-}
-
-.alert-box h3 {
-  margin: 0 0 12px;
-  font-size: 15px;
-}
-
-.alert-message {
-  padding: 14px;
-  border-radius: 10px;
-  background: #16243a;
-  color: var(--green);
-  font-size: 13px;
-}
-
-.alert-message.danger {
-  background: #3a1b28;
-  color: var(--red);
-}
-
-footer {
-  padding: 25px;
-  text-align: center;
-  color: var(--muted);
-  font-size: 12px;
-  border-top: 1px solid var(--border);
-  margin-top: 30px;
-}
-
-@media (max-width: 1100px) {
-  .grid { grid-template-columns: repeat(2, 1fr); }
-  .sensor-grid { grid-template-columns: repeat(2, 1fr); }
-}
-
-@media (max-width: 650px) {
-  main { padding: 15px; }
-  header { padding: 18px; }
-  .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  .card { padding: 15px; }
-  .card-value { font-size: 23px; }
-  .sensor-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .info-grid { grid-template-columns: 1fr; }
-  .chart-wrap { height: 300px; }
-  .welcome h2 { font-size: 20px; }
-}
+  /* Alerts table */
+  .alert-list { max-height: 320px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
+  td.type { font-weight: 700; }
+  td.type.apnea  { color: var(--bad); }
+  td.type.noise  { color: var(--warn); }
+  td.type.pt     { color: var(--accent); }
+  .empty { color: var(--muted); font-style: italic; padding: 12px 0; }
+  .status-line { font-size: .8rem; color: var(--muted); margin-top: 8px; }
+  .status-line.online { color: var(--ok); }
+  .status-line.offline { color: var(--bad); }
 </style>
 </head>
-
 <body>
 
-<header>
-  <div class="brand">
-    <div class="logo">🛏</div>
-    <div>
-      <h1>Smart Pillow</h1>
-      <p>Intelligent Respiratory Monitoring System</p>
-    </div>
-  </div>
+<h1>Smart Pillow <span>Dashboard</span></h1>
 
-  <div class="connection">
-    <span class="dot" id="connectionDot"></span>
-    <span id="connectionText">Connecting to Firebase...</span>
-  </div>
-</header>
+<div class="grid">
 
-<main>
-
-  <div class="welcome">
-    <div>
-      <h2>Monitoring Dashboard</h2>
-      <p>Real-time patient and respiratory monitoring</p>
-    </div>
-    <div class="status-pill" id="systemStatus">INITIALIZING</div>
-  </div>
-
-  <!-- MAIN KPI CARDS -->
-  <div class="grid">
-
-    <div class="card">
-      <div class="card-icon">🫁</div>
-      <div class="card-label">Respiratory Rate</div>
-      <div class="card-value cyan">
-        <span id="breathRate">--</span>
-        <span class="card-unit"> breaths/min</span>
+  <!-- LIVE TILES -->
+  <div class="card full">
+    <h2>Live Status</h2>
+    <div class="tiles">
+      <div class="tile">
+        <div class="label">Status</div>
+        <div class="value" id="t-status"><span class="badge idle">—</span></div>
       </div>
-      <div class="card-footer">Breathing frequency</div>
-    </div>
-
-    <div class="card">
-      <div class="card-icon">👤</div>
-      <div class="card-label">Patient Presence</div>
-      <div class="card-value" id="patientStatus">--</div>
-      <div class="card-footer">Pillow occupancy detection</div>
-    </div>
-
-    <div class="card">
-      <div class="card-icon">📈</div>
-      <div class="card-label">Breathing Activity</div>
-      <div class="card-value" id="breathingStatus">--</div>
-      <div class="card-footer">Piezo-based activity</div>
-    </div>
-
-    <div class="card">
-      <div class="card-icon">🚨</div>
-      <div class="card-label">Apnea Status</div>
-      <div class="card-value" id="apneaStatus">--</div>
-      <div class="card-footer">Respiration timeout alert</div>
-    </div>
-
-  </div>
-
-  <!-- ONE COMBINED GRAPH -->
-  <div class="card chart-card">
-    <div class="chart-head">
-      <div>
-        <h3>Real-Time Sensor Trends</h3>
-        <p>Breath Rate · FSR · Piezo Amplitude · Sound</p>
+      <div class="tile">
+        <div class="label">Patient</div>
+        <div class="value" id="t-patient">—</div>
       </div>
-      <div class="card-label">Live History</div>
+      <div class="tile">
+        <div class="label">Breath Rate</div>
+        <div class="value" id="t-br">— <small style="font-size:.7rem;color:var(--muted)">/min</small></div>
+      </div>
+      <div class="tile">
+        <div class="label">FSR</div>
+        <div class="value" id="t-fsr">—</div>
+      </div>
+      <div class="tile">
+        <div class="label">Piezo Amp</div>
+        <div class="value" id="t-amp">—</div>
+      </div>
+      <div class="tile">
+        <div class="label">Sound</div>
+        <div class="value" id="t-sound">—</div>
+      </div>
+      <div class="tile">
+        <div class="label">Faults</div>
+        <div class="value" id="t-faults" style="font-size:1rem">—</div>
+      </div>
+      <div class="tile">
+        <div class="label">Uptime</div>
+        <div class="value" id="t-uptime" style="font-size:1.1rem">—</div>
+      </div>
     </div>
+    <div class="status-line" id="conn">Connecting to Firebase…</div>
+  </div>
 
-    <div class="chart-wrap">
-      <canvas id="sensorChart"></canvas>
+  <!-- CHART -->
+  <div class="card full">
+    <h2>Live Sensor Trends — Recent History</h2>
+    <div class="chart-wrap"><canvas id="chart"></canvas></div>
+  </div>
+
+  <!-- ALERTS -->
+  <div class="card full">
+    <h2>Alert Log (newest first)</h2>
+    <div class="alert-list" id="alerts">
+      <div class="empty">Waiting for alerts…</div>
     </div>
   </div>
 
-  <!-- SENSOR DETAILS -->
-  <h3 class="section-title">Sensor Measurements</h3>
+</div>
 
-  <div class="sensor-grid">
+<!-- =========================================================
+     Firebase Realtime Database over REST (no SDK required).
+     Uses ?auth=<secret>; if you switch to Firebase Auth later,
+     replace `AUTH` with an ID token.
+     ========================================================= -->
+<script type="module">
+  const DB_URL  = "https://billow-37092-default-rtdb.asia-southeast1.firebasedatabase.app";
+  const AUTH    = "nVqLdVpnotQI2gnWARaDbC7QYhurd0ar4dFTrKON"; // <-- regenerate this!
+  const BASE    = `${DB_URL}`;
+  const LIVE_PATH   = "/smartPillow/live";
+  const HIST_PATH   = "/smartPillow/history";
+  const ALERTS_PATH = "/smartPillow/alerts";
 
-    <div class="sensor-card">
-      <h4>FSR Pressure Sensor</h4>
-      <div class="sensor-value" id="fsrValue">--</div>
-      <div class="sensor-status" id="fsrStatus">Waiting</div>
-    </div>
+  async function fbGet(path) {
+    const url = `${BASE}${path}.json?auth=${encodeURIComponent(AUTH)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`GET ${path} → ${res.status}`);
+    return res.json();
+  }
 
-    <div class="sensor-card">
-      <h4>Piezo Amplitude</h4>
-      <div class="sensor-value" id="piezoAmp">--</div>
-      <div class="sensor-status" id="piezoStatus">Waiting</div>
-    </div>
+  // ---------- Helpers ----------
+  const fmtTime = ts => {
+    // ts is seconds (from ESP32). If it looks like ms, still works.
+    const d = new Date(ts * 1000);
+    return d.toLocaleTimeString();
+  };
+  const fmtDateTime = ts => new Date(ts * 1000).toLocaleString();
 
-    <div class="sensor-card">
-      <h4>Piezo Raw Value</h4>
-      <div class="sensor-value" id="piezoRaw">--</div>
-      <div class="sensor-status">Analog input</div>
-    </div>
+  // ---------- Live tiles ----------
+  const $ = id => document.getElementById(id);
 
-    <div class="sensor-card">
-      <h4>Sound Sensor</h4>
-      <div class="sensor-value" id="soundValue">--</div>
-      <div class="sensor-status" id="soundStatus">Waiting</div>
-    </div>
+  function renderLive(live) {
+    if (!live) return;
+    const status = (live.status || "IDLE").toUpperCase();
+    const statusCls =
+      status === "NORMAL" ? "ok" :
+      status === "APNEA"  ? "bad" :
+      status === "NOISE"  ? "warn" :
+      status === "FAULT"  ? "bad" : "idle";
+    $("t-status").innerHTML = `<span class="badge ${statusCls}">${status}</span>`;
 
-  </div>
+    $("t-patient").textContent = live.patient ? "PRESENT" : "ABSENT";
+    $("t-br").innerHTML  = `${live.breathRate ?? "—"} <small style="font-size:.7rem;color:var(--muted)">/min</small>`;
+    $("t-fsr").textContent = live.fsr ?? "—";
+    $("t-amp").textContent = live.piezoAmp ?? "—";
+    $("t-sound").textContent = live.sound ?? "—";
+    $("t-faults").textContent = live.faults ?? "—";
+    $("t-uptime").textContent = live.uptime ?? "—";
+  }
 
-  <!-- SYSTEM INFORMATION -->
-  <h3 class="section-title">System Information</h3>
-
-  <div class="info-grid">
-    <div class="info-card">
-      <h4>Wi-Fi Connection</h4>
-      <div class="info-value" id="wifiStatus">--</div>
-    </div>
-
-    <div class="info-card">
-      <h4>Firebase Status</h4>
-      <div class="info-value" id="firebaseStatus">--</div>
-    </div>
-
-    <div class="info-card">
-      <h4>Device Uptime</h4>
-      <div class="info-value" id="uptime">--</div>
-    </div>
-
-    <div class="info-card">
-      <h4>Sensor Faults</h4>
-      <div class="info-value" id="faults">--</div>
-    </div>
-
-    <div class="info-card">
-      <h4>Sound Alert</h4>
-      <div class="info-value" id="soundAlert">--</div>
-    </div>
-
-    <div class="info-card">
-      <h4>Last Update</h4>
-      <div class="info-value" id="lastUpdate">--</div>
-    </div>
-  </div>
-
-  <!-- ALERT BOX -->
-  <div class="alert-box">
-    <h3>System Alerts</h3>
-    <div class="alert-message" id="alertMessage">
-      System initializing...
-    </div>
-  </div>
-
-</main>
-
-<footer>
-  Smart Pillow · ESP32 · Firebase Realtime Monitoring
-</footer>
-
-<script>
-// ====================================================
-// FIREBASE CONFIGURATION
-// ====================================================
-
-const firebaseConfig = {
-  apiKey: "YOUR_FIREBASE_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_ID",
-  appId: "YOUR_APP_ID"
-};
-
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-
-// ====================================================
-// CHART
-// ====================================================
-
-const ctx = document.getElementById("sensorChart");
-
-const chart = new Chart(ctx, {
-  type: "line",
-  data: {
-    labels: [],
-    datasets: [
-      {
-        label: "Breath Rate",
-        data: [],
-        borderColor: "#36d6f5",
-        backgroundColor: "rgba(54,214,245,0.12)",
-        tension: 0.35,
-        borderWidth: 2,
-        pointRadius: 0,
-        yAxisID: "y"
+  // ---------- Updated combined sensor chart ----------
+  const ctx = document.getElementById("chart").getContext("2d");
+  const chart = new Chart(ctx, {
+    type: "line",
+    data: { labels: [], datasets: [
+      { label: "Breath Rate (/min)", data: [], borderColor: "#38bdf8", backgroundColor: "rgba(56,189,248,.12)", tension: .35, fill: false, pointRadius: 0, borderWidth: 2, yAxisID: "y" },
+      { label: "FSR Pressure", data: [], borderColor: "#f59e0b", tension: .3, pointRadius: 0, borderWidth: 2, yAxisID: "y1" },
+      { label: "Piezo Amplitude", data: [], borderColor: "#22c55e", tension: .3, pointRadius: 0, borderWidth: 2, yAxisID: "y1" },
+      { label: "Sound Sensor", data: [], borderColor: "#f472b6", tension: .3, pointRadius: 0, borderWidth: 2, yAxisID: "y1" }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { labels: { color: "#e2e8f0", usePointStyle: true, padding: 16 } },
+        tooltip: { callbacks: { title: items => items.length ? items[0].label : "" } }
       },
-      {
-        label: "FSR",
-        data: [],
-        borderColor: "#fbbf24",
-        tension: 0.3,
-        borderWidth: 2,
-        pointRadius: 0,
-        yAxisID: "y1"
-      },
-      {
-        label: "Piezo Amplitude",
-        data: [],
-        borderColor: "#34d399",
-        tension: 0.3,
-        borderWidth: 2,
-        pointRadius: 0,
-        yAxisID: "y1"
-      },
-      {
-        label: "Sound",
-        data: [],
-        borderColor: "#fb7185",
-        tension: 0.3,
-        borderWidth: 2,
-        pointRadius: 0,
-        yAxisID: "y1"
-      }
-    ]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: false,
-    interaction: {
-      intersect: false,
-      mode: "index"
-    },
-    plugins: {
-      legend: {
-        labels: {
-          color: "#c5d2e5",
-          usePointStyle: true,
-          padding: 18
-        }
-      },
-      tooltip: {
-        backgroundColor: "#111b2e",
-        titleColor: "#ffffff",
-        bodyColor: "#d5deee",
-        borderColor: "#24334b",
-        borderWidth: 1
-      }
-    },
-    scales: {
-      x: {
-        grid: { color: "rgba(143,162,189,0.08)" },
-        ticks: { color: "#8fa2bd", maxTicksLimit: 8 }
-      },
-      y: {
-        type: "linear",
-        position: "left",
-        title: {
-          display: true,
-          text: "Breaths / min",
-          color: "#36d6f5"
-        },
-        grid: { color: "rgba(143,162,189,0.08)" },
-        ticks: { color: "#8fa2bd" }
-      },
-      y1: {
-        type: "linear",
-        position: "right",
-        title: {
-          display: true,
-          text: "Raw Sensor Values",
-          color: "#fbbf24"
-        },
-        grid: { drawOnChartArea: false },
-        ticks: { color: "#8fa2bd" }
+      scales: {
+        x: { type: "category", ticks: { color: "#94a3b8", maxTicksLimit: 8 }, grid: { color: "rgba(148,163,184,.08)" } },
+        y: { type: "linear", position: "left", beginAtZero: true, suggestedMax: 30, title: { display: true, text: "Breaths/min", color: "#38bdf8" }, ticks: { color: "#38bdf8" }, grid: { color: "rgba(148,163,184,.1)" } },
+        y1: { type: "linear", position: "right", beginAtZero: true, suggestedMax: 4095, title: { display: true, text: "Raw sensor values", color: "#f59e0b" }, ticks: { color: "#f59e0b" }, grid: { drawOnChartArea: false } }
       }
     }
-  }
-});
+  });
 
-// ====================================================
-// CHART UPDATE
-// ====================================================
-
-const MAX_POINTS = 30;
-
-function updateChart(data) {
-  const time = new Date().toLocaleTimeString();
-
-  chart.data.labels.push(time);
-  chart.data.datasets[0].data.push(Number(data.breathRate || 0));
-  chart.data.datasets[1].data.push(Number(data.fsr || 0));
-  chart.data.datasets[2].data.push(Number(data.piezoAmp || 0));
-  chart.data.datasets[3].data.push(Number(data.sound || 0));
-
-  if (chart.data.labels.length > MAX_POINTS) {
-    chart.data.labels.shift();
-    chart.data.datasets.forEach(ds => ds.data.shift());
+  function renderHistory(hist) {
+    const entries = hist ? Object.values(hist).filter(e => e && Number.isFinite(Number(e.ts))) : [];
+    entries.sort((a, b) => Number(a.ts) - Number(b.ts));
+    const src = entries.slice(-200);
+    const labels = src.map(e => new Date(Number(e.ts) * 1000).toLocaleTimeString());
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = src.map(e => Number(e.br ?? e.breathRate ?? 0));
+    chart.data.datasets[1].data = src.map(e => Number(e.fsr ?? 0));
+    chart.data.datasets[2].data = src.map(e => Number(e.piezoAmp ?? e.piezo ?? 0));
+    chart.data.datasets[3].data = src.map(e => Number(e.sound ?? 0));
+    chart.update("none");
   }
 
-  chart.update("none");
-}
-
-// ====================================================
-// LIVE DATA
-// ====================================================
-
-db.ref("/smartPillow/live").on("value", snapshot => {
-
-  const d = snapshot.val();
-  if (!d) return;
-
-  document.getElementById("breathRate").textContent = d.breathRate ?? 0;
-  document.getElementById("patientStatus").textContent =
-    d.patient ? "PRESENT" : "ABSENT";
-
-  document.getElementById("breathingStatus").textContent =
-    d.breathingActive ? "ACTIVE" : "LOW";
-
-  document.getElementById("apneaStatus").textContent =
-    d.apneaAlert ? "ALERT" : "NORMAL";
-
-  document.getElementById("fsrValue").textContent = d.fsr ?? 0;
-  document.getElementById("piezoAmp").textContent = d.piezoAmp ?? 0;
-  document.getElementById("piezoRaw").textContent = d.piezoRaw ?? 0;
-  document.getElementById("soundValue").textContent = d.sound ?? 0;
-
-  document.getElementById("wifiStatus").textContent =
-    "Connected / Device data received";
-
-  document.getElementById("firebaseStatus").textContent = "Connected";
-
-  document.getElementById("uptime").textContent = d.uptime ?? "--";
-  document.getElementById("faults").textContent = d.faults ?? "NONE";
-  document.getElementById("soundAlert").textContent =
-    d.soundAlert ? "HIGH SOUND" : "NORMAL";
-
-  document.getElementById("lastUpdate").textContent =
-    new Date().toLocaleTimeString();
-
-  const status = d.status || "NORMAL";
-  const statusEl = document.getElementById("systemStatus");
-
-  statusEl.textContent = status;
-  statusEl.className = "status-pill" +
-    ((status === "APNEA" || status === "FAULT" || status === "NOISE")
-      ? " alert" : "");
-
-  const alertEl = document.getElementById("alertMessage");
-
-  if (d.apneaAlert) {
-    alertEl.textContent = "⚠ APNEA ALERT: Breathing activity timeout detected.";
-    alertEl.className = "alert-message danger";
-  } else if (d.soundAlert) {
-    alertEl.textContent = "⚠ HIGH SOUND: Abnormal sound level detected.";
-    alertEl.className = "alert-message danger";
-  } else if (d.faults && d.faults !== "NONE") {
-    alertEl.textContent = "⚠ SENSOR FAULT: " + d.faults;
-    alertEl.className = "alert-message danger";
-  } else {
-    alertEl.textContent = "✓ System normal. Monitoring active.";
-    alertEl.className = "alert-message";
+  // Add a live point if history hasn't produced an entry yet; keeps the graph visible.
+  function appendLivePoint(live) {
+    if (!live) return;
+    const label = new Date().toLocaleTimeString();
+    if (chart.data.labels.length === 0) {
+      chart.data.labels.push(label);
+      chart.data.datasets[0].data.push(Number(live.breathRate ?? 0));
+      chart.data.datasets[1].data.push(Number(live.fsr ?? 0));
+      chart.data.datasets[2].data.push(Number(live.piezoAmp ?? 0));
+      chart.data.datasets[3].data.push(Number(live.sound ?? 0));
+      chart.update("none");
+    }
   }
 
-  updateChart(d);
-});
 
-// ====================================================
-// CONNECTION STATUS
-// ====================================================
+  // ---------- Alerts ----------
+  function alertClass(type) {
+    if (!type) return "";
+    if (type.startsWith("APNEA"))  return "apnea";
+    if (type.startsWith("NOISE"))  return "noise";
+    if (type.startsWith("PATIENT"))return "pt";
+    return "";
+  }
 
-db.ref(".info/connected").on("value", snapshot => {
-  const online = snapshot.val() === true;
+  function renderAlerts(alertsObj) {
+    const el = $("alerts");
+    if (!alertsObj) {
+      el.innerHTML = `<div class="empty">No alerts yet.</div>`;
+      return;
+    }
+    const rows = Object.entries(alertsObj)
+      .map(([id, a]) => ({ id, ...a }))
+      .filter(a => a && a.ts)
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, 100);
 
-  document.getElementById("connectionDot").className =
-    "dot " + (online ? "online" : "offline");
+    if (!rows.length) {
+      el.innerHTML = `<div class="empty">No alerts yet.</div>`;
+      return;
+    }
 
-  document.getElementById("connectionText").textContent =
-    online ? "Firebase Connected" : "Firebase Disconnected";
-});
+    el.innerHTML = `
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Type</th><th>Detail</th><th>BR</th><th>FSR</th><th>Sound</th></tr>
+        </thead>
+        <tbody>
+          ${rows.map(a => `
+            <tr>
+              <td>${fmtDateTime(a.ts)}</td>
+              <td class="type ${alertClass(a.type)}">${a.type ?? "—"}</td>
+              <td>${a.detail ?? "—"}</td>
+              <td>${a.br ?? "—"}</td>
+              <td>${a.fsr ?? "—"}</td>
+              <td>${a.sound ?? "—"}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>`;
+  }
 
-// ====================================================
-// ERROR HANDLING
-// ====================================================
+  // ---------- Polling (REST) ----------
+  // RTDB SDK would give you live events; here we poll every 3 s.
+  async function poll() {
+    try {
+      const [live, hist, alerts] = await Promise.all([
+        fbGet(LIVE_PATH),
+        fbGet(HIST_PATH),
+        fbGet(ALERTS_PATH),
+      ]);
+      renderLive(live);
+      renderHistory(hist);
+      if (!hist || Object.keys(hist).length === 0) appendLivePoint(live);
+      renderAlerts(alerts);
 
-db.ref("/smartPillow/live").on("value", () => {}, error => {
-  console.error("Firebase error:", error);
-  document.getElementById("firebaseStatus").textContent = "Error";
-});
+      const conn = $("conn");
+      conn.textContent = `Online — last sync ${new Date().toLocaleTimeString()}`;
+      conn.className = "status-line online";
+    } catch (err) {
+      const conn = $("conn");
+      conn.textContent = `Offline — ${err.message}`;
+      conn.className = "status-line offline";
+      console.error(err);
+    }
+  }
+
+  poll();
+  setInterval(poll, 3000);
 </script>
-
 </body>
 </html>
