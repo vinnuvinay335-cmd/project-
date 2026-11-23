@@ -9,15 +9,28 @@
 <style>
   :root {
     --bg:#0f172a; --panel:#1e293b; --line:#334155; --text:#e2e8f0;
-    --muted:#94a3b8; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --accent:#38bdf8;
+    --muted:#94a3b8; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444;
+    --accent:#38bdf8; --pink:#f472b6;
   }
   * { box-sizing: border-box; }
   body {
     margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     background: var(--bg); color: var(--text); padding: 16px;
   }
-  h1 { font-size: 1.4rem; margin: 0 0 12px; letter-spacing: .5px; }
+  h1 { font-size: 1.4rem; margin: 0 0 8px; letter-spacing: .5px; }
   h1 span { color: var(--accent); }
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    margin-bottom: 14px; font-size: .85rem;
+  }
+  .toolbar label { color: var(--muted); }
+  select, button {
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 10px; font-size: .85rem; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.active { background: var(--accent); color: #000; border-color: var(--accent); }
   .grid { display: grid; gap: 12px; }
   @media (min-width: 1000px) {
     .grid { grid-template-columns: 1fr 1fr; }
@@ -27,26 +40,26 @@
     background: var(--panel); border: 1px solid var(--line);
     border-radius: 10px; padding: 14px;
   }
-  .card h2 { margin: 0 0 10px; font-size: .95rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
-
-  /* Live tiles */
+  .card h2 {
+    margin: 0 0 10px; font-size: .9rem; color: var(--muted);
+    font-weight: 600; text-transform: uppercase; letter-spacing: .5px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .card h2 .stat { color: var(--text); font-size: 1rem; font-weight: 700; text-transform: none; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap: 10px; }
   .tile { background: #0b1220; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
-  .tile .label { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
-  .tile .value { font-size: 1.5rem; font-weight: 700; margin-top: 4px; }
+  .tile .label { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+  .tile .value { font-size: 1.45rem; font-weight: 700; margin-top: 4px; }
   .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .8rem; font-weight: 700; }
   .ok    { background: rgba(34,197,94,.15);  color: var(--ok); }
   .warn  { background: rgba(245,158,11,.15); color: var(--warn); }
   .bad   { background: rgba(239,68,68,.15);  color: var(--bad); }
   .idle  { background: rgba(148,163,184,.15); color: var(--muted); }
-
-  /* Chart */
-  .chart-wrap { position: relative; height: 320px; }
-
-  /* Alerts table */
-  .alert-list { max-height: 320px; overflow-y: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
-  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  .chart-wrap { position: relative; height: 220px; }
+  .chart-wrap.tall { height: 260px; }
+  .alert-list { max-height: 340px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); }
   th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
   td.type { font-weight: 700; }
   td.type.apnea  { color: var(--bad); }
@@ -62,52 +75,65 @@
 
 <h1>Smart Pillow <span>Dashboard</span></h1>
 
+<div class="toolbar">
+  <label>Window:</label>
+  <select id="window">
+    <option value="5">5 min</option>
+    <option value="10" selected>10 min</option>
+    <option value="30">30 min</option>
+    <option value="60">60 min</option>
+  </select>
+  <button id="autoBtn" class="active">Auto-refresh: ON</button>
+  <button id="refreshBtn">Refresh now</button>
+  <button id="csvBtn">Export CSV</button>
+  <span class="status-line" id="conn" style="margin-left:auto">Connecting…</span>
+</div>
+
 <div class="grid">
 
   <!-- LIVE TILES -->
   <div class="card full">
     <h2>Live Status</h2>
     <div class="tiles">
-      <div class="tile">
-        <div class="label">Status</div>
-        <div class="value" id="t-status"><span class="badge idle">—</span></div>
-      </div>
-      <div class="tile">
-        <div class="label">Patient</div>
-        <div class="value" id="t-patient">—</div>
-      </div>
-      <div class="tile">
-        <div class="label">Breath Rate</div>
-        <div class="value" id="t-br">— <small style="font-size:.7rem;color:var(--muted)">/min</small></div>
-      </div>
-      <div class="tile">
-        <div class="label">FSR</div>
-        <div class="value" id="t-fsr">—</div>
-      </div>
-      <div class="tile">
-        <div class="label">Piezo Amp</div>
-        <div class="value" id="t-amp">—</div>
-      </div>
-      <div class="tile">
-        <div class="label">Sound</div>
-        <div class="value" id="t-sound">—</div>
-      </div>
-      <div class="tile">
-        <div class="label">Faults</div>
-        <div class="value" id="t-faults" style="font-size:1rem">—</div>
-      </div>
-      <div class="tile">
-        <div class="label">Uptime</div>
-        <div class="value" id="t-uptime" style="font-size:1.1rem">—</div>
-      </div>
+      <div class="tile"><div class="label">Status</div><div class="value" id="t-status"><span class="badge idle">—</span></div></div>
+      <div class="tile"><div class="label">Patient</div><div class="value" id="t-patient">—</div></div>
+      <div class="tile"><div class="label">Breath Rate</div><div class="value" id="t-br">—</div></div>
+      <div class="tile"><div class="label">FSR</div><div class="value" id="t-fsr">—</div></div>
+      <div class="tile"><div class="label">Piezo Amp</div><div class="value" id="t-amp">—</div></div>
+      <div class="tile"><div class="label">Sound</div><div class="value" id="t-sound">—</div></div>
+      <div class="tile"><div class="label">Faults</div><div class="value" id="t-faults" style="font-size:1rem">—</div></div>
+      <div class="tile"><div class="label">Uptime</div><div class="value" id="t-uptime" style="font-size:1.1rem">—</div></div>
     </div>
-    <div class="status-line" id="conn">Connecting to Firebase…</div>
   </div>
 
-  <!-- CHART -->
+  <!-- BREATH RATE -->
+  <div class="card">
+    <h2>Breath Rate <span class="stat" id="stat-br">—</span></h2>
+    <div class="chart-wrap"><canvas id="chart-br"></canvas></div>
+  </div>
+
+  <!-- FSR -->
+  <div class="card">
+    <h2>FSR Pressure <span class="stat" id="stat-fsr">—</span></h2>
+    <div class="chart-wrap"><canvas id="chart-fsr"></canvas></div>
+  </div>
+
+  <!-- PIEZO AMP -->
+  <div class="card">
+    <h2>Piezo Amplitude <span class="stat" id="stat-amp">—</span></h2>
+    <div class="chart-wrap"><canvas id="chart-amp"></canvas></div>
+  </div>
+
+  <!-- SOUND -->
+  <div class="card">
+    <h2>Sound Level <span class="stat" id="stat-snd">—</span></h2>
+    <div class="chart-wrap"><canvas id="chart-snd"></canvas></div>
+  </div>
+
+  <!-- STATUS TIMELINE -->
   <div class="card full">
-    <h2>Breath Rate &amp; FSR — Last 10 Minutes</h2>
-    <div class="chart-wrap"><canvas id="chart"></canvas></div>
+    <h2>Status Timeline <span class="stat" id="stat-status">—</span></h2>
+    <div class="chart-wrap tall"><canvas id="chart-status"></canvas></div>
   </div>
 
   <!-- ALERTS -->
@@ -120,93 +146,140 @@
 
 </div>
 
-<!-- =========================================================
-     Firebase Realtime Database over REST (no SDK required).
-     Uses ?auth=<secret>; if you switch to Firebase Auth later,
-     replace `AUTH` with an ID token.
-     ========================================================= -->
 <script type="module">
+  // ============================================================
+  // CONFIG
+  // ============================================================
   const DB_URL  = "https://billow-37092-default-rtdb.asia-southeast1.firebasedatabase.app";
-  const AUTH    = "nVqLdVpnotQI2gnWARaDbC7QYhurd0ar4dFTrKON"; // <-- regenerate this!
-  const BASE    = `${DB_URL}`;
+  const AUTH    = "nVqLdVpnotQI2gnWARaDbC7QYhurd0ar4dFTrKON"; // regenerate this!
   const LIVE_PATH   = "/smartPillow/live";
   const HIST_PATH   = "/smartPillow/history";
   const ALERTS_PATH = "/smartPillow/alerts";
 
+  const THRESHOLDS = {
+    apneaMin: 15 * 60,   // 15 min without breathing → apnea (informative line only)
+    fsrPresent: 3000,    // fsr < 3000 → patient present
+    piezoActive: 60,     // piezoAmp ≥ 60 → breathing motion
+    soundAlert: 2200,    // sound > 2200 → noise alert
+  };
+
+  // ============================================================
+  // FIREBASE REST
+  // ============================================================
   async function fbGet(path) {
-    const url = `${BASE}${path}.json?auth=${encodeURIComponent(AUTH)}`;
+    const url = `${DB_URL}${path}.json?auth=${encodeURIComponent(AUTH)}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`GET ${path} → ${res.status}`);
     return res.json();
   }
 
-  // ---------- Helpers ----------
-  const fmtTime = ts => {
-    // ts is seconds (from ESP32). If it looks like ms, still works.
-    const d = new Date(ts * 1000);
-    return d.toLocaleTimeString();
-  };
-  const fmtDateTime = ts => new Date(ts * 1000).toLocaleString();
-
-  // ---------- Live tiles ----------
+  // ============================================================
+  // HELPERS
+  // ============================================================
   const $ = id => document.getElementById(id);
+  const state = { live: null, hist: {}, alerts: {}, windowMin: 10, auto: true };
 
-  function renderLive(live) {
-    if (!live) return;
-    const status = (live.status || "IDLE").toUpperCase();
-    const statusCls =
-      status === "NORMAL" ? "ok" :
-      status === "APNEA"  ? "bad" :
-      status === "NOISE"  ? "warn" :
-      status === "FAULT"  ? "bad" : "idle";
-    $("t-status").innerHTML = `<span class="badge ${statusCls}">${status}</span>`;
-
-    $("t-patient").textContent = live.patient ? "PRESENT" : "ABSENT";
-    $("t-br").innerHTML  = `${live.breathRate ?? "—"} <small style="font-size:.7rem;color:var(--muted)">/min</small>`;
-    $("t-fsr").textContent = live.fsr ?? "—";
-    $("t-amp").textContent = live.piezoAmp ?? "—";
-    $("t-sound").textContent = live.sound ?? "—";
-    $("t-faults").textContent = live.faults ?? "—";
-    $("t-uptime").textContent = live.uptime ?? "—";
+  function filteredHistory() {
+    const cutoff = Date.now() - state.windowMin * 60 * 1000;
+    return Object.values(state.hist || {})
+      .filter(e => e && e.ts)
+      .map(e => ({ ...e, x: e.ts * 1000 }))
+      .filter(e => e.x >= cutoff)
+      .sort((a, b) => a.x - b.x);
   }
 
-  // ---------- Chart ----------
-  const ctx = document.getElementById("chart").getContext("2d");
-  const chart = new Chart(ctx, {
+  // Common chart options factory
+  function lineChart(canvasId, color, yLabel, yMin, yMax, threshold) {
+    const ctx = document.getElementById(canvasId).getContext("2d");
+    const datasets = [{
+      label: yLabel,
+      data: [],
+      borderColor: color,
+      backgroundColor: color + "22",
+      tension: 0.3,
+      fill: true,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      borderWidth: 2,
+    }];
+    if (threshold != null) {
+      datasets.push({
+        label: "Threshold",
+        data: [],
+        borderColor: "#ef4444",
+        borderDash: [6, 4],
+        pointRadius: 0,
+        borderWidth: 1,
+        fill: false,
+      });
+    }
+    return new Chart(ctx, {
+      type: "line",
+      data: { datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { labels: { color: "#e2e8f0", boxWidth: 12, font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              title: items => items.length ? new Date(items[0].parsed.x).toLocaleTimeString() : "",
+            },
+          },
+        },
+        scales: {
+          x: {
+            type: "time",
+            time: { unit: "minute" },
+            ticks: { color: "#94a3b8", maxRotation: 0, autoSkip: true, font: { size: 10 } },
+            grid: { color: "rgba(148,163,184,.08)" },
+          },
+          y: {
+            suggestedMin: yMin,
+            suggestedMax: yMax,
+            title: { display: true, text: yLabel, color, font: { size: 10 } },
+            ticks: { color: "#94a3b8", font: { size: 10 } },
+            grid: { color: "rgba(148,163,184,.08)" },
+          },
+        },
+      },
+    });
+  }
+
+  // ============================================================
+  // CHARTS
+  // ============================================================
+  const chartBR  = lineChart("chart-br",  "#38bdf8", "breaths/min", 0, 30, THRESHOLDS.apneaMin);
+  const chartFSR = lineChart("chart-fsr", "#f59e0b", "raw", 0, 4095, THRESHOLDS.fsrPresent);
+  const chartAMP = lineChart("chart-amp", "#a78bfa", "amplitude", 0, 500, THRESHOLDS.piezoActive);
+  const chartSND = lineChart("chart-snd", "#f472b6", "raw", 0, 4095, THRESHOLDS.soundAlert);
+
+  // Status timeline: pseudo-bar rendered as stepped lines
+  const statusCtx = document.getElementById("chart-status").getContext("2d");
+  const chartStatus = new Chart(statusCtx, {
     type: "line",
-    data: {
-      datasets: [
-        {
-          label: "Breath Rate (/min)",
-          data: [],
-          borderColor: "#38bdf8",
-          backgroundColor: "rgba(56,189,248,.15)",
-          tension: 0.3,
-          fill: true,
-          yAxisID: "y",
-          pointRadius: 2,
-        },
-        {
-          label: "FSR",
-          data: [],
-          borderColor: "#f59e0b",
-          backgroundColor: "rgba(245,158,11,.10)",
-          tension: 0.3,
-          fill: false,
-          yAxisID: "y1",
-          pointRadius: 2,
-        },
-      ],
-    },
+    data: { datasets: [{
+      label: "Status code",
+      data: [],
+      stepped: true,
+      borderColor: "#38bdf8",
+      backgroundColor: "rgba(56,189,248,.15)",
+      fill: true,
+      pointRadius: 0,
+      borderWidth: 2,
+    }]},
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
+      animation: false,
       plugins: {
-        legend: { labels: { color: "#e2e8f0" } },
+        legend: { display: false },
         tooltip: {
           callbacks: {
             title: items => items.length ? new Date(items[0].parsed.x).toLocaleTimeString() : "",
+            label: item => STATUS_LABEL[item.parsed.y] || "—",
           },
         },
       },
@@ -214,80 +287,135 @@
         x: {
           type: "time",
           time: { unit: "minute" },
-          ticks: { color: "#94a3b8" },
-          grid:  { color: "rgba(148,163,184,.1)" },
+          ticks: { color: "#94a3b8", maxRotation: 0, font: { size: 10 } },
+          grid: { color: "rgba(148,163,184,.08)" },
         },
         y: {
-          position: "left",
-          title: { display: true, text: "Breath /min", color: "#38bdf8" },
-          ticks: { color: "#38bdf8" },
-          grid:  { color: "rgba(148,163,184,.1)" },
-          suggestedMin: 0,
-          suggestedMax: 30,
-        },
-        y1: {
-          position: "right",
-          title: { display: true, text: "FSR", color: "#f59e0b" },
-          ticks: { color: "#f59e0b" },
-          grid:  { drawOnChartArea: false },
-          suggestedMin: 0,
-          suggestedMax: 4095,
+          min: -0.5, max: 4.5,
+          ticks: {
+            color: "#94a3b8",
+            stepSize: 1,
+            callback: v => STATUS_LABEL[v] || "",
+            font: { size: 10 },
+          },
+          grid: { color: "rgba(148,163,184,.08)" },
         },
       },
     },
   });
 
-  function renderHistory(hist) {
-    if (!hist) return;
-    const entries = Object.values(hist)
-      .filter(e => e && e.ts)
-      .sort((a, b) => a.ts - b.ts)
-      .slice(-200); // last 200 points ≈ 10 min @ 5s (plus some)
+  const STATUS_CODE = { NORMAL: 0, APNEA: 1, NOISE: 2, FAULT: 3, IDLE: 4 };
+  const STATUS_LABEL = ["NORMAL", "APNEA", "NOISE", "FAULT", "IDLE"];
 
-    const cutoff = Date.now() - 10 * 60 * 1000;
-    const recent = entries.filter(e => e.ts * 1000 >= cutoff);
-    const src = recent.length ? recent : entries; // fall back if timezone/clock skew
+  // ============================================================
+  // RENDER: TILES
+  // ============================================================
+  function renderLive(live) {
+    state.live = live;
+    if (!live) return;
+    const status = (live.status || "IDLE").toUpperCase();
+    const cls =
+      status === "NORMAL" ? "ok"  :
+      status === "APNEA"  ? "bad" :
+      status === "NOISE"  ? "warn":
+      status === "FAULT"  ? "bad" : "idle";
+    $("t-status").innerHTML = `<span class="badge ${cls}">${status}</span>`;
+    $("t-patient").textContent = live.patient ? "PRESENT" : "ABSENT";
+    $("t-br").textContent  = live.breathRate ?? "—";
+    $("t-fsr").textContent = live.fsr ?? "—";
+    $("t-amp").textContent = live.piezoAmp ?? "—";
+    $("t-sound").textContent = live.sound ?? "—";
+    $("t-faults").textContent = live.faults ?? "—";
+    $("t-uptime").textContent = live.uptime ?? "—";
 
-    chart.data.datasets[0].data = src.map(e => ({ x: e.ts * 1000, y: e.br ?? 0 }));
-    chart.data.datasets[1].data = src.map(e => ({ x: e.ts * 1000, y: e.fsr ?? 0 }));
-    chart.update("none");
+    $("stat-br").textContent  = (live.breathRate ?? "—") + " /min";
+    $("stat-fsr").textContent = live.fsr ?? "—";
+    $("stat-amp").textContent = live.piezoAmp ?? "—";
+    $("stat-snd").textContent = live.sound ?? "—";
+    $("stat-status").textContent = status;
   }
 
-  // ---------- Alerts ----------
+  // ============================================================
+  // RENDER: CHARTS
+  // ============================================================
+  function renderCharts() {
+    const rows = filteredHistory();
+
+    // Breath rate
+    chartBR.data.datasets[0].data = rows.map(r => ({ x: r.x, y: r.br ?? 0 }));
+    if (chartBR.data.datasets[1]) {
+      chartBR.data.datasets[1].data = rows.length
+        ? [{ x: rows[0].x, y: THRESHOLDS.apneaMin }, { x: rows[rows.length - 1].x, y: THRESHOLDS.apneaMin }]
+        : [];
+    }
+
+    // FSR
+    chartFSR.data.datasets[0].data = rows.map(r => ({ x: r.x, y: r.fsr ?? 0 }));
+    if (chartFSR.data.datasets[1]) {
+      chartFSR.data.datasets[1].data = rows.length
+        ? [{ x: rows[0].x, y: THRESHOLDS.fsrPresent }, { x: rows[rows.length - 1].x, y: THRESHOLDS.fsrPresent }]
+        : [];
+    }
+
+    // Piezo amplitude
+    chartAMP.data.datasets[0].data = rows.map(r => ({ x: r.x, y: r.piezoAmp ?? 0 }));
+    if (chartAMP.data.datasets[1]) {
+      chartAMP.data.datasets[1].data = rows.length
+        ? [{ x: rows[0].x, y: THRESHOLDS.piezoActive }, { x: rows[rows.length - 1].x, y: THRESHOLDS.piezoActive }]
+        : [];
+    }
+
+    // Sound
+    chartSND.data.datasets[0].data = rows.map(r => ({ x: r.x, y: r.sound ?? 0 }));
+    if (chartSND.data.datasets[1]) {
+      chartSND.data.datasets[1].data = rows.length
+        ? [{ x: rows[0].x, y: THRESHOLDS.soundAlert }, { x: rows[rows.length - 1].x, y: THRESHOLDS.soundAlert }]
+        : [];
+    }
+
+    // Status timeline
+    chartStatus.data.datasets[0].data = rows.map(r => ({
+      x: r.x,
+      y: STATUS_CODE[(r.status || "IDLE").toUpperCase()] ?? 4,
+    }));
+
+    chartBR.update("none");
+    chartFSR.update("none");
+    chartAMP.update("none");
+    chartSND.update("none");
+    chartStatus.update("none");
+  }
+
+  // ============================================================
+  // RENDER: ALERTS
+  // ============================================================
   function alertClass(type) {
     if (!type) return "";
-    if (type.startsWith("APNEA"))  return "apnea";
-    if (type.startsWith("NOISE"))  return "noise";
-    if (type.startsWith("PATIENT"))return "pt";
+    if (type.startsWith("APNEA"))   return "apnea";
+    if (type.startsWith("NOISE"))   return "noise";
+    if (type.startsWith("PATIENT")) return "pt";
     return "";
   }
 
   function renderAlerts(alertsObj) {
+    state.alerts = alertsObj;
     const el = $("alerts");
-    if (!alertsObj) {
-      el.innerHTML = `<div class="empty">No alerts yet.</div>`;
-      return;
-    }
-    const rows = Object.entries(alertsObj)
-      .map(([id, a]) => ({ id, ...a }))
+    if (!alertsObj) { el.innerHTML = `<div class="empty">No alerts yet.</div>`; return; }
+
+    const rows = Object.values(alertsObj)
       .filter(a => a && a.ts)
       .sort((a, b) => b.ts - a.ts)
-      .slice(0, 100);
+      .slice(0, 200);
 
-    if (!rows.length) {
-      el.innerHTML = `<div class="empty">No alerts yet.</div>`;
-      return;
-    }
+    if (!rows.length) { el.innerHTML = `<div class="empty">No alerts yet.</div>`; return; }
 
     el.innerHTML = `
       <table>
-        <thead>
-          <tr><th>Time</th><th>Type</th><th>Detail</th><th>BR</th><th>FSR</th><th>Sound</th></tr>
-        </thead>
+        <thead><tr><th>Time</th><th>Type</th><th>Detail</th><th>BR</th><th>FSR</th><th>Sound</th></tr></thead>
         <tbody>
           ${rows.map(a => `
             <tr>
-              <td>${fmtDateTime(a.ts)}</td>
+              <td>${new Date(a.ts * 1000).toLocaleString()}</td>
               <td class="type ${alertClass(a.type)}">${a.type ?? "—"}</td>
               <td>${a.detail ?? "—"}</td>
               <td>${a.br ?? "—"}</td>
@@ -299,8 +427,11 @@
       </table>`;
   }
 
-  // ---------- Polling (REST) ----------
-  // RTDB SDK would give you live events; here we poll every 3 s.
+  // ============================================================
+  // POLLING
+  // ============================================================
+  let timer = null;
+
   async function poll() {
     try {
       const [live, hist, alerts] = await Promise.all([
@@ -308,23 +439,64 @@
         fbGet(HIST_PATH),
         fbGet(ALERTS_PATH),
       ]);
+      state.hist = hist || {};
       renderLive(live);
-      renderHistory(hist);
+      renderCharts();
       renderAlerts(alerts);
-
-      const conn = $("conn");
-      conn.textContent = `Online — last sync ${new Date().toLocaleTimeString()}`;
-      conn.className = "status-line online";
+      const c = $("conn");
+      c.textContent = `Online — ${new Date().toLocaleTimeString()}`;
+      c.className = "status-line online";
     } catch (err) {
-      const conn = $("conn");
-      conn.textContent = `Offline — ${err.message}`;
-      conn.className = "status-line offline";
+      const c = $("conn");
+      c.textContent = `Offline — ${err.message}`;
+      c.className = "status-line offline";
       console.error(err);
     }
   }
 
+  function startAuto() { stopAuto(); timer = setInterval(poll, 3000); }
+  function stopAuto()  { if (timer) { clearInterval(timer); timer = null; } }
+
+  // ============================================================
+  // EXPORT CSV
+  // ============================================================
+  function exportCSV() {
+    const rows = filteredHistory();
+    if (!rows.length) { alert("No history in the selected window."); return; }
+    const header = "timestamp,iso,breathRate,fsr,piezoAmp,sound,status\n";
+    const body = rows.map(r =>
+      `${r.ts},${new Date(r.x).toISOString()},${r.br ?? ""},${r.fsr ?? ""},${r.piezoAmp ?? ""},${r.sound ?? ""},${r.status ?? ""}`
+    ).join("\n");
+    const blob = new Blob([header + body], { type: "text/csv" });
+    const a = Object.assign(document.createElement("a"), {
+      href: URL.createObjectURL(blob),
+      download: `smart-pillow-${new Date().toISOString().slice(0,19).replace(/:/g,"-")}.csv`,
+    });
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // ============================================================
+  // UI WIRING
+  // ============================================================
+  $("window").addEventListener("change", e => {
+    state.windowMin = parseInt(e.target.value, 10);
+    renderCharts();
+  });
+
+  $("autoBtn").addEventListener("click", () => {
+    state.auto = !state.auto;
+    $("autoBtn").classList.toggle("active", state.auto);
+    $("autoBtn").textContent = `Auto-refresh: ${state.auto ? "ON" : "OFF"}`;
+    state.auto ? startAuto() : stopAuto();
+  });
+
+  $("refreshBtn").addEventListener("click", poll);
+  $("csvBtn").addEventListener("click", exportCSV);
+
+  // Boot
   poll();
-  setInterval(poll, 3000);
+  startAuto();
 </script>
 </body>
 </html>
