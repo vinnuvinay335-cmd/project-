@@ -10,7 +10,7 @@
   :root {
     --bg:#0f172a; --panel:#1e293b; --line:#334155; --text:#e2e8f0;
     --muted:#94a3b8; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444;
-    --accent:#38bdf8; --pink:#f472b6;
+    --accent:#38bdf8; --pink:#f472b6; --purple:#a78bfa;
   }
   * { box-sizing: border-box; }
   body {
@@ -19,6 +19,7 @@
   }
   h1 { font-size: 1.4rem; margin: 0 0 8px; letter-spacing: .5px; }
   h1 span { color: var(--accent); }
+  
   .toolbar {
     display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
     margin-bottom: 14px; font-size: .85rem;
@@ -31,6 +32,7 @@
   }
   button:hover { border-color: var(--accent); }
   button.active { background: var(--accent); color: #000; border-color: var(--accent); }
+  
   .grid { display: grid; gap: 12px; }
   @media (min-width: 1000px) {
     .grid { grid-template-columns: 1fr 1fr; }
@@ -46,6 +48,8 @@
     display: flex; justify-content: space-between; align-items: center;
   }
   .card h2 .stat { color: var(--text); font-size: 1rem; font-weight: 700; text-transform: none; }
+  
+  /* Tiles */
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap: 10px; }
   .tile { background: #0b1220; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
   .tile .label { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
@@ -55,8 +59,12 @@
   .warn  { background: rgba(245,158,11,.15); color: var(--warn); }
   .bad   { background: rgba(239,68,68,.15);  color: var(--bad); }
   .idle  { background: rgba(148,163,184,.15); color: var(--muted); }
+  
+  /* Charts */
   .chart-wrap { position: relative; height: 220px; }
   .chart-wrap.tall { height: 260px; }
+  
+  /* Alerts */
   .alert-list { max-height: 340px; overflow-y: auto; }
   table { width: 100%; border-collapse: collapse; font-size: .82rem; }
   th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); }
@@ -148,19 +156,19 @@
 
 <script type="module">
   // ============================================================
-  // CONFIG
+  // CONFIG — REPLACE WITH YOUR NEW SECRET
   // ============================================================
   const DB_URL  = "https://billow-37092-default-rtdb.asia-southeast1.firebasedatabase.app";
-  const AUTH    = "nVqLdVpnotQI2gnWARaDbC7QYhurd0ar4dFTrKON"; // regenerate this!
+  const AUTH    = "nVqLdVpnotQI2gnWARaDbC7QYhurd0ar4dFTrKON"; // <-- CHANGE THIS!
   const LIVE_PATH   = "/smartPillow/live";
   const HIST_PATH   = "/smartPillow/history";
   const ALERTS_PATH = "/smartPillow/alerts";
 
   const THRESHOLDS = {
-    apneaMin: 15 * 60,   // 15 min without breathing → apnea (informative line only)
-    fsrPresent: 3000,    // fsr < 3000 → patient present
-    piezoActive: 60,     // piezoAmp ≥ 60 → breathing motion
-    soundAlert: 2200,    // sound > 2200 → noise alert
+    apneaMin: 15 * 60,   // 15 min threshold line (informative)
+    fsrPresent: 3000,    // fsr < 3000 = patient present
+    piezoActive: 60,     // piezoAmp >= 60 = motion
+    soundAlert: 2200,    // sound > 2200 = alert
   };
 
   // ============================================================
@@ -188,7 +196,6 @@
       .sort((a, b) => a.x - b.x);
   }
 
-  // Common chart options factory
   function lineChart(canvasId, color, yLabel, yMin, yMax, threshold) {
     const ctx = document.getElementById(canvasId).getContext("2d");
     const datasets = [{
@@ -249,15 +256,17 @@
   }
 
   // ============================================================
-  // CHARTS
+  // CHARTS INIT
   // ============================================================
   const chartBR  = lineChart("chart-br",  "#38bdf8", "breaths/min", 0, 30, THRESHOLDS.apneaMin);
   const chartFSR = lineChart("chart-fsr", "#f59e0b", "raw", 0, 4095, THRESHOLDS.fsrPresent);
   const chartAMP = lineChart("chart-amp", "#a78bfa", "amplitude", 0, 500, THRESHOLDS.piezoActive);
   const chartSND = lineChart("chart-snd", "#f472b6", "raw", 0, 4095, THRESHOLDS.soundAlert);
 
-  // Status timeline: pseudo-bar rendered as stepped lines
   const statusCtx = document.getElementById("chart-status").getContext("2d");
+  const STATUS_CODE = { NORMAL: 0, APNEA: 1, NOISE: 2, FAULT: 3, IDLE: 4 };
+  const STATUS_LABEL = ["NORMAL", "APNEA", "NOISE", "FAULT", "IDLE"];
+
   const chartStatus = new Chart(statusCtx, {
     type: "line",
     data: { datasets: [{
@@ -304,11 +313,8 @@
     },
   });
 
-  const STATUS_CODE = { NORMAL: 0, APNEA: 1, NOISE: 2, FAULT: 3, IDLE: 4 };
-  const STATUS_LABEL = ["NORMAL", "APNEA", "NOISE", "FAULT", "IDLE"];
-
   // ============================================================
-  // RENDER: TILES
+  // RENDER FUNCTIONS
   // ============================================================
   function renderLive(live) {
     state.live = live;
@@ -335,45 +341,33 @@
     $("stat-status").textContent = status;
   }
 
-  // ============================================================
-  // RENDER: CHARTS
-  // ============================================================
   function renderCharts() {
     const rows = filteredHistory();
 
-    // Breath rate
     chartBR.data.datasets[0].data = rows.map(r => ({ x: r.x, y: r.br ?? 0 }));
     if (chartBR.data.datasets[1]) {
       chartBR.data.datasets[1].data = rows.length
-        ? [{ x: rows[0].x, y: THRESHOLDS.apneaMin }, { x: rows[rows.length - 1].x, y: THRESHOLDS.apneaMin }]
-        : [];
+        ? [{ x: rows[0].x, y: THRESHOLDS.apneaMin }, { x: rows[rows.length - 1].x, y: THRESHOLDS.apneaMin }] : [];
     }
 
-    // FSR
     chartFSR.data.datasets[0].data = rows.map(r => ({ x: r.x, y: r.fsr ?? 0 }));
     if (chartFSR.data.datasets[1]) {
       chartFSR.data.datasets[1].data = rows.length
-        ? [{ x: rows[0].x, y: THRESHOLDS.fsrPresent }, { x: rows[rows.length - 1].x, y: THRESHOLDS.fsrPresent }]
-        : [];
+        ? [{ x: rows[0].x, y: THRESHOLDS.fsrPresent }, { x: rows[rows.length - 1].x, y: THRESHOLDS.fsrPresent }] : [];
     }
 
-    // Piezo amplitude
     chartAMP.data.datasets[0].data = rows.map(r => ({ x: r.x, y: r.piezoAmp ?? 0 }));
     if (chartAMP.data.datasets[1]) {
       chartAMP.data.datasets[1].data = rows.length
-        ? [{ x: rows[0].x, y: THRESHOLDS.piezoActive }, { x: rows[rows.length - 1].x, y: THRESHOLDS.piezoActive }]
-        : [];
+        ? [{ x: rows[0].x, y: THRESHOLDS.piezoActive }, { x: rows[rows.length - 1].x, y: THRESHOLDS.piezoActive }] : [];
     }
 
-    // Sound
     chartSND.data.datasets[0].data = rows.map(r => ({ x: r.x, y: r.sound ?? 0 }));
     if (chartSND.data.datasets[1]) {
       chartSND.data.datasets[1].data = rows.length
-        ? [{ x: rows[0].x, y: THRESHOLDS.soundAlert }, { x: rows[rows.length - 1].x, y: THRESHOLDS.soundAlert }]
-        : [];
+        ? [{ x: rows[0].x, y: THRESHOLDS.soundAlert }, { x: rows[rows.length - 1].x, y: THRESHOLDS.soundAlert }] : [];
     }
 
-    // Status timeline
     chartStatus.data.datasets[0].data = rows.map(r => ({
       x: r.x,
       y: STATUS_CODE[(r.status || "IDLE").toUpperCase()] ?? 4,
@@ -386,9 +380,6 @@
     chartStatus.update("none");
   }
 
-  // ============================================================
-  // RENDER: ALERTS
-  // ============================================================
   function alertClass(type) {
     if (!type) return "";
     if (type.startsWith("APNEA"))   return "apnea";
@@ -428,16 +419,14 @@
   }
 
   // ============================================================
-  // POLLING
+  // POLLING & UI WIRING
   // ============================================================
   let timer = null;
 
   async function poll() {
     try {
       const [live, hist, alerts] = await Promise.all([
-        fbGet(LIVE_PATH),
-        fbGet(HIST_PATH),
-        fbGet(ALERTS_PATH),
+        fbGet(LIVE_PATH), fbGet(HIST_PATH), fbGet(ALERTS_PATH),
       ]);
       state.hist = hist || {};
       renderLive(live);
@@ -457,9 +446,6 @@
   function startAuto() { stopAuto(); timer = setInterval(poll, 3000); }
   function stopAuto()  { if (timer) { clearInterval(timer); timer = null; } }
 
-  // ============================================================
-  // EXPORT CSV
-  // ============================================================
   function exportCSV() {
     const rows = filteredHistory();
     if (!rows.length) { alert("No history in the selected window."); return; }
@@ -476,9 +462,6 @@
     URL.revokeObjectURL(a.href);
   }
 
-  // ============================================================
-  // UI WIRING
-  // ============================================================
   $("window").addEventListener("change", e => {
     state.windowMin = parseInt(e.target.value, 10);
     renderCharts();
